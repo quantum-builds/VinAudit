@@ -2,123 +2,27 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from db.mysql import MySQLDatabase
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from models import db, Dealer, VehicleModel, Listing, DealerWebsite
+from datetime import datetime
+from dotenv import load_dotenv
 
-CREATE_TABLE_QUERY = """
-    CREATE TABLE IF NOT EXISTS dealers (
-        dealer_id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        street VARCHAR(255),
-        city VARCHAR(255) NOT NULL,
-        state CHAR(2) NOT NULL,
-        zip VARCHAR(10) NOT NULL,
-        UNIQUE KEY dealer_loc (name(50), street(50), city, state, zip)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+load_dotenv()
 
-    CREATE TABLE IF NOT EXISTS vehicle_models (
-        model_id SMALLINT AUTO_INCREMENT PRIMARY KEY,
-        make VARCHAR(255) NOT NULL,
-        model VARCHAR(255) NOT NULL,
-        UNIQUE KEY make_model (make, model)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+def create_app():
+    app = Flask(__name__)
+    app.config['SQLALCHEMY_DATABASE_URI'] = (
+        f"mysql+mysqlconnector://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@"
+        f"{os.getenv('DB_HOST', 'localhost')}:{os.getenv('DB_PORT', '3307')}/{os.getenv('DB_NAME')}"
+    )
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db.init_app(app)
+    return app
 
-    CREATE TABLE IF NOT EXISTS listings (
-        vin VARCHAR(17) PRIMARY KEY,
-        year SMALLINT NOT NULL,
-        model_id SMALLINT NOT NULL,
-        trim VARCHAR(255),
-        dealer_id INT NOT NULL,
-        price DECIMAL(10,2),
-        mileage INT,
-        used BOOLEAN NOT NULL DEFAULT 1,
-        certified BOOLEAN NOT NULL DEFAULT 0,
-        style VARCHAR(255),
-        driven_wheels VARCHAR(255),
-        engine VARCHAR(255),
-        fuel_type VARCHAR(255),
-        exterior_color VARCHAR(255),
-        interior_color VARCHAR(255),
-        first_seen DATE NOT NULL,
-        last_seen DATE NOT NULL,
-        vdp_last_seen DATE,
-        status VARCHAR(20),
-        
-        INDEX idx_year_model (year, model_id),
-        INDEX idx_mileage (mileage),
-        FOREIGN KEY (model_id) 
-            REFERENCES vehicle_models(model_id) ON DELETE CASCADE,
-        FOREIGN KEY (dealer_id) 
-            REFERENCES dealers(dealer_id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-    CREATE TABLE IF NOT EXISTS dealer_websites (
-        dealer_id INT PRIMARY KEY,
-        url VARCHAR(255) NOT NULL,
-        FOREIGN KEY (dealer_id) 
-            REFERENCES dealers(dealer_id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-"""
-
-def create_tables(connection):
-    cursor = connection.cursor()
-    try:
-        for query in CREATE_TABLE_QUERY.split(';'):
-            if query.strip():
-                cursor.execute(query)
-        connection.commit()
-    finally:
-        cursor.close()
-
-def process_file(file_path, connection):
+def process_file(file_path, app):
     total_processed = 0
     total_errors = 0
-
-    # SQL Queries
-    dealer_insert = """
-        INSERT INTO dealers (name, street, city, state, zip)
-        VALUES (%s, %s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE dealer_id = LAST_INSERT_ID(dealer_id)
-    """
-    model_insert = """
-        INSERT INTO vehicle_models (make, model)
-        VALUES (%s, %s)
-        ON DUPLICATE KEY UPDATE model_id = LAST_INSERT_ID(model_id)
-    """
-    website_insert = """
-        INSERT INTO dealer_websites (dealer_id, url)
-        VALUES (%s, %s)
-        ON DUPLICATE KEY UPDATE url = VALUES(url)
-    """
-    listing_insert = """
-        INSERT INTO listings (
-            vin, year, model_id, trim, dealer_id, price, mileage, used, certified, style, 
-            driven_wheels, engine, fuel_type, exterior_color, interior_color, 
-            first_seen, last_seen, vdp_last_seen, status
-        ) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
-            %s, %s, %s, %s, %s, 
-            %s, %s, %s, %s
-        )
-        ON DUPLICATE KEY UPDATE
-            year = VALUES(year),
-            model_id = VALUES(model_id),
-            trim = VALUES(trim),
-            dealer_id = VALUES(dealer_id),
-            price = VALUES(price),
-            mileage = VALUES(mileage),
-            used = VALUES(used),
-            certified = VALUES(certified),
-            style = VALUES(style),
-            driven_wheels = VALUES(driven_wheels),
-            engine = VALUES(engine),
-            fuel_type = VALUES(fuel_type),
-            exterior_color = VALUES(exterior_color),
-            interior_color = VALUES(interior_color),
-            first_seen = VALUES(first_seen),
-            last_seen = VALUES(last_seen),
-            vdp_last_seen = VALUES(vdp_last_seen),
-            status = VALUES(status)
-    """
 
     try:
         with open(file_path, 'r') as f:
@@ -152,8 +56,8 @@ def process_file(file_path, connection):
                     year = int(year_str)
                     price = float(price_str) if price_str else None
                     mileage = int(mileage_str) if mileage_str else None
-                    used = 1 if used_str == 'TRUE' else 0
-                    certified = 1 if certified_str == 'TRUE' else 0
+                    used = used_str == 'TRUE'
+                    certified = certified_str == 'TRUE'
 
                     # Handle empty strings
                     trim = trim or None
@@ -166,32 +70,105 @@ def process_file(file_path, connection):
                     vdp_last_seen = vdp_last_seen or None
                     status = status or None
 
-                    with connection.cursor() as cursor:
-                        # Insert dealer and get ID
-                        cursor.execute(dealer_insert, dealer_info)
-                        dealer_id = cursor.lastrowid
+                    with app.app_context():
+                        # Create or get dealer
+                        dealer = Dealer.query.filter_by(
+                            name=dealer_info[0],
+                            street=dealer_info[1],
+                            city=dealer_info[2],
+                            state=dealer_info[3],
+                            zip=dealer_info[4]
+                        ).first()
+                        
+                        if not dealer:
+                            dealer = Dealer(
+                                name=dealer_info[0],
+                                street=dealer_info[1],
+                                city=dealer_info[2],
+                                state=dealer_info[3],
+                                zip=dealer_info[4]
+                            )
+                            db.session.add(dealer)
+                            db.session.flush()  # Get dealer_id
 
-                        # Insert model and get ID
-                        cursor.execute(model_insert, (make, model))
-                        model_id = cursor.lastrowid
+                        # Create or get vehicle model
+                        vehicle_model = VehicleModel.query.filter_by(
+                            make=make,
+                            model=model
+                        ).first()
+                        
+                        if not vehicle_model:
+                            vehicle_model = VehicleModel(
+                                make=make,
+                                model=model
+                            )
+                            db.session.add(vehicle_model)
+                            db.session.flush()  # Get model_id
 
-                        # Insert website if exists
+                        # Create or update website
                         if website:
-                            cursor.execute(website_insert, (dealer_id, website))
+                            dealer_website = DealerWebsite.query.get(dealer.dealer_id)
+                            if dealer_website:
+                                dealer_website.url = website
+                            else:
+                                dealer_website = DealerWebsite(
+                                    dealer_id=dealer.dealer_id,
+                                    url=website
+                                )
+                                db.session.add(dealer_website)
 
-                        # Insert listing
-                        listing_data = (
-                            vin, year, model_id, trim, dealer_id, price, mileage, used, certified, style,
-                            driven_wheels, engine, fuel_type, ext_color, int_color,
-                            first_seen, last_seen, vdp_last_seen, status
-                        )
-                        cursor.execute(listing_insert, listing_data)
+                        # Create or update listing
+                        listing = Listing.query.get(vin)
+                        if listing:
+                            # Update existing listing
+                            listing.year = year
+                            listing.model_id = vehicle_model.model_id
+                            listing.trim = trim
+                            listing.dealer_id = dealer.dealer_id
+                            listing.price = price
+                            listing.mileage = mileage
+                            listing.used = used
+                            listing.certified = certified
+                            listing.style = style
+                            listing.driven_wheels = driven_wheels
+                            listing.engine = engine
+                            listing.fuel_type = fuel_type
+                            listing.exterior_color = ext_color
+                            listing.interior_color = int_color
+                            listing.first_seen = datetime.strptime(first_seen, '%Y-%m-%d').date()
+                            listing.last_seen = datetime.strptime(last_seen, '%Y-%m-%d').date()
+                            listing.vdp_last_seen = datetime.strptime(vdp_last_seen, '%Y-%m-%d').date() if vdp_last_seen else None
+                            listing.status = status
+                        else:
+                            # Create new listing
+                            listing = Listing(
+                                vin=vin,
+                                year=year,
+                                model_id=vehicle_model.model_id,
+                                trim=trim,
+                                dealer_id=dealer.dealer_id,
+                                price=price,
+                                mileage=mileage,
+                                used=used,
+                                certified=certified,
+                                style=style,
+                                driven_wheels=driven_wheels,
+                                engine=engine,
+                                fuel_type=fuel_type,
+                                exterior_color=ext_color,
+                                interior_color=int_color,
+                                first_seen=datetime.strptime(first_seen, '%Y-%m-%d').date(),
+                                last_seen=datetime.strptime(last_seen, '%Y-%m-%d').date(),
+                                vdp_last_seen=datetime.strptime(vdp_last_seen, '%Y-%m-%d').date() if vdp_last_seen else None,
+                                status=status
+                            )
+                            db.session.add(listing)
 
-                    connection.commit()
-                    total_processed += 1
+                        db.session.commit()
+                        total_processed += 1
 
                 except Exception as e:
-                    connection.rollback()
+                    db.session.rollback()
                     total_errors += 1
                     print(f"Error processing line: {line}\nError: {e}")
 
@@ -207,17 +184,14 @@ def main():
         sys.exit(1)
 
     file_path = sys.argv[1]
-    db = MySQLDatabase()
-    connection = db.get_connection()
-    print("Connected to database")
+    app = create_app()
     
-    create_tables(connection)
-    print("Tables created/verified")
-    
-    total_processed, total_errors = process_file(file_path, connection)
-    
-    connection.close()
-    print(f"Finished: {total_processed} records processed, {total_errors} errors")
+    with app.app_context():
+        db.create_all()  # This will create tables if they don't exist
+        print("Tables created/verified")
+        
+        total_processed, total_errors = process_file(file_path, app)
+        print(f"Finished: {total_processed} records processed, {total_errors} errors")
 
 if __name__ == "__main__":
     main()

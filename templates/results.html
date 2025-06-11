@@ -1,0 +1,55 @@
+{% extends "base.html" %} {% block content %}
+<div class="container mt-5">
+  <h1 class="mb-4">Price Estimation Results</h1>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <h2 class="card-title">Estimated Price</h2>
+      <p class="display-4">${{ "{:,}".format(price) }}</p>
+      <p class="text-muted">
+        {% if mileage %} Based on {{ "{:,}".format(mileage) }} miles {% else %}
+        Based on average mileage {% endif %}
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <h2 class="card-title">Sample Listings Used in Calculation</h2>
+      {% if listings %}
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Vehicle</th>
+              <th>Price</th>
+              <th>Mileage</th>
+              <th>Location</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for listing in listings %}
+            <tr>
+              <td>
+                {{ listing.year }} {{ listing.make }} {{ listing.model }} {{
+                listing.trim }}
+              </td>
+              <td>${{ "{:,}".format(listing.price) }}</td>
+              <td>{{ "{:,}".format(listing.mileage) }}</td>
+              <td>{{ listing.city }}, {{ listing.state }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted">No sample listings available.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="mt-4">
+    <a href="{{ url_for('search') }}" class="btn btn-primary">New Search</a>
+  </div>
+</div>
+{% endblock %}

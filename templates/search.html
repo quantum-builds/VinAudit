@@ -8,109 +8,79 @@
         <p class="lead text-muted">Find the market value of your vehicle</p>
       </div>
 
+      {% if error %}
+      <div class="alert alert-danger" role="alert">{{ error }}</div>
+      {% endif %}
+
       <div class="card border-0 shadow-lg mb-5">
         <div class="card-body p-5">
-          <form method="POST" action="/search">
-            <div class="row g-4">
-              <div class="col-md-4">
-                <label for="year" class="form-label fw-bold">Year</label>
-                <input
-                  type="number"
-                  class="form-control form-control-lg"
-                  id="year"
-                  name="year"
-                  placeholder="2024"
-                  min="1900"
-                  max="2024"
-                  required
-                />
+          <form method="POST" action="{{ url_for('results') }}">
+            <div class="mb-4">
+              <label class="form-label fw-bold">Vehicle Information</label>
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <input
+                    type="number"
+                    class="form-control form-control-lg"
+                    id="year"
+                    name="year"
+                    placeholder="Year"
+                    min="1900"
+                    max="2025"
+                    required
+                  />
+                </div>
+                <div class="col-md-4">
+                  <input
+                    type="text"
+                    class="form-control form-control-lg"
+                    id="make"
+                    name="make"
+                    placeholder="Make"
+                    required
+                  />
+                </div>
+                <div class="col-md-4">
+                  <input
+                    type="text"
+                    class="form-control form-control-lg"
+                    id="model"
+                    name="model"
+                    placeholder="Model"
+                    required
+                  />
+                </div>
               </div>
-              <div class="col-md-4">
-                <label for="make" class="form-label fw-bold">Make</label>
-                <input
-                  type="text"
-                  class="form-control form-control-lg"
-                  id="make"
-                  name="make"
-                  placeholder="Toyota"
-                  required
-                />
-              </div>
-              <div class="col-md-4">
-                <label for="model" class="form-label fw-bold">Model</label>
-                <input
-                  type="text"
-                  class="form-control form-control-lg"
-                  id="model"
-                  name="model"
-                  placeholder="Camry"
-                  required
-                />
+              <div class="form-text">
+                Enter the year, make, and model of your vehicle
               </div>
             </div>
 
-            <div class="row mt-4">
-              <div class="col-md-6">
-                <label for="mileage" class="form-label fw-bold"
-                  >Mileage (optional)</label
-                >
-                <input
-                  type="number"
-                  class="form-control form-control-lg"
-                  id="mileage"
-                  name="mileage"
-                  placeholder="150,000"
-                />
+            <div class="mb-4">
+              <label for="mileage" class="form-label fw-bold"
+                >Mileage (optional)</label
+              >
+              <input
+                type="number"
+                class="form-control form-control-lg"
+                id="mileage"
+                name="mileage"
+                placeholder="150000"
+                min="0"
+              />
+              <div class="form-text">
+                Enter the current mileage of your vehicle
               </div>
-              <div class="col-md-6 d-flex align-items-end">
-                <button type="submit" class="btn btn-primary btn-lg w-100">
-                  <i class="fas fa-search me-2"></i>Search Vehicle
-                </button>
-              </div>
+            </div>
+
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary btn-lg">
+                <i class="fas fa-search me-2"></i>Get Price Estimate
+              </button>
             </div>
           </form>
         </div>
       </div>
-
-      {% if results %}
-      <div class="card border-0 shadow-lg">
-        <div class="card-body p-5">
-          <div class="text-center mb-5">
-            <h2 class="display-5 mb-3">Search Results</h2>
-            <div class="alert alert-info p-4 rounded-3">
-              <h3 class="h4 mb-2">Estimated Market Value</h3>
-              <p class="display-4 mb-0 text-primary">
-                ${{ results.estimated_price }}
-              </p>
-            </div>
-          </div>
-
-          <h3 class="h4 mb-4">Sample Listings</h3>
-          <div class="table-responsive">
-            <table class="table table-hover align-middle">
-              <thead class="table-light">
-                <tr>
-                  <th>Vehicle</th>
-                  <th>Price</th>
-                  <th>Mileage</th>
-                  <th>Location</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for listing in results.listings %}
-                <tr>
-                  <td class="fw-bold">{{ listing.vehicle }}</td>
-                  <td class="text-primary">${{ listing.price }}</td>
-                  <td>{{ listing.mileage }} miles</td>
-                  <td>{{ listing.location }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      {% endif %}
     </div>
   </div>
 </div>
