@@ -4,7 +4,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from models import db, Dealer, VehicleModel, Listing, DealerWebsite
+from models import db, Dealer, Vehicle, Listing, DealerWebsite
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -92,17 +92,17 @@ def process_file(file_path, app):
                             db.session.flush()  # Get dealer_id
 
                         # Create or get vehicle model
-                        vehicle_model = VehicleModel.query.filter_by(
+                        vehicle = Vehicle.query.filter_by(
                             make=make,
                             model=model
                         ).first()
                         
-                        if not vehicle_model:
-                            vehicle_model = VehicleModel(
+                        if not vehicle:
+                            vehicle = Vehicle(
                                 make=make,
                                 model=model
                             )
-                            db.session.add(vehicle_model)
+                            db.session.add(vehicle)
                             db.session.flush()  # Get model_id
 
                         # Create or update website
@@ -122,7 +122,7 @@ def process_file(file_path, app):
                         if listing:
                             # Update existing listing
                             listing.year = year
-                            listing.model_id = vehicle_model.model_id
+                            listing.model_id = vehicle.model_id
                             listing.trim = trim
                             listing.dealer_id = dealer.dealer_id
                             listing.price = price
@@ -144,7 +144,7 @@ def process_file(file_path, app):
                             listing = Listing(
                                 vin=vin,
                                 year=year,
-                                model_id=vehicle_model.model_id,
+                                model_id=vehicle.model_id,
                                 trim=trim,
                                 dealer_id=dealer.dealer_id,
                                 price=price,

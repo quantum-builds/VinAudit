@@ -5,10 +5,10 @@
   <div class="card mb-4">
     <div class="card-body">
       <h2 class="card-title">Estimated Price</h2>
-      <p class="display-4">${{ "{:,}".format(price) }}</p>
+      <p class="display-4">${{ "{:,}".format(estimated_price) }}</p>
       <p class="text-muted">
-        {% if mileage %} Based on {{ "{:,}".format(mileage) }} miles {% else %}
-        Based on average mileage {% endif %}
+        {% if mileage %} Based on {{ "{:,}".format(mileage|int) }} miles (user
+        input) {% else %} Based on median mileage of sample listings {% endif %}
       </p>
     </div>
   </div>
@@ -31,12 +31,12 @@
             {% for listing in listings %}
             <tr>
               <td>
-                {{ listing.year }} {{ listing.make }} {{ listing.model }} {{
-                listing.trim }}
+                {{ listing.year }} {{ listing.vehicle.make }} {{
+                listing.vehicle.model }} {{ listing.trim }}
               </td>
               <td>${{ "{:,}".format(listing.price) }}</td>
               <td>{{ "{:,}".format(listing.mileage) }}</td>
-              <td>{{ listing.city }}, {{ listing.state }}</td>
+              <td>{{ listing.dealer.city }}, {{ listing.dealer.state }}</td>
             </tr>
             {% endfor %}
           </tbody>
